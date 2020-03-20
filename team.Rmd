@@ -9,3 +9,41 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+
+
+```{r}
+
+library(readxl)
+defense <- read_excel('cyclonesFootball2019.xlsx', sheet='Defensive')
+offense <- read_excel('cyclonesFootball2019.xlsx', sheet='Offensive')
+biography <- read_excel('cyclonesFootball2019.xlsx', sheet='Biography')
+
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+defense <- defense %>% mutate(Name = factor(Name), Opponent_Opponent = factor(Opponent_Opponent))
+offense <- offense %>% mutate(Name = factor(Name), Opponent_Opponent = factor(Opponent_Opponent))
+biography <- biography %>% mutate(Name = factor(Name))
+defClean <- defense %>% mutate_at(.vars = vars(Tackles_Solo, Tackles_ASST, Tackles_TFL, Tackles_Sack, Turnover_FF, Turnover_FR, Turnover_INT, Pass_QBH, Pass_PB), .funs = funs(as.numeric))
+offClean <- offense %>% mutate_at(.vars = vars(Rushing_ATT, Rushing_YDS, Rushing_TD, Receiving_REC, Receiving_YDS, Receiving_TD, 'Passing_CMP-ATT', Passing_YDS, Passing_TD, Passing_INT), .funs = funs(as.numeric))
+biography <- biography %>% mutate_at(.vars = vars(Weight), .funs = funs(as.numeric))
+bioClean <- biography %>% separate(col = Height, into= c('Feet', 'Inches'), sep = "-") %>% mutate_at(.vars = vars(Feet, Inches), .funs = funs(as.numeric)) %>% mutate(Feet = Feet* 12) %>% mutate(Height_Inches = Feet + Inches) %>% select(-Inches, -Feet)
+str(bioClean)
+str(defClean)
+str(offClean)
+```
+
+```{r}
+defClean <- defClean %>% pivot_longer(Tackles_Solo:Pass_PB, names_to = 'Statistic', values_to = 'Value')
+defClean %>% ggplot(aes(x = Value)) + geom_histogram() + facet_wrap(~Statistic, scales = 'free_x') 
+```
+The Rarest defensive skills are forced fumbles, fumble recoveries, and interceptions. This is because for most players those values are at zero and only a few players have 1 of these statistics.
+
+```{r}
+def <- defClean
+def$Value <- def$Value %>% replace_na(0)
+def <- def %>% filter(Statistic == "Tackles_Solo", Opponent_Opponent %in% c('West Virginia', 'Kansas State'))
+def <- def %>% pivot_wider(names_from = Opponent_Opponent, values_from = Value)
+def %>% ggplot(aes(x = `West Virginia`, y = `Kansas State`)) + geom_point(position = 'jitter') + geom_smooth(method = lm) + ggtitle("Solo Tackles by Player Kansas State vs. West Virginia")
+```
+From the scatter plot you can see that Iowa State had the more solo tackles against West Virginia meaning that they had a better defense against West Virginia.
