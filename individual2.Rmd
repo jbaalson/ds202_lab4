@@ -1,0 +1,17 @@
+---
+title: "individual2.Rmd"
+author: "chrlwhtng"
+date: "3/20/2020"
+output: html_document
+---
+
+```{r}
+library(readxl)
+defense <- read_excel('cyclonesFootball2019.xlsx', sheet='Defensive')
+View(defense)
+offense <- read_excel('cyclonesFootball2019.xlsx', sheet='Offensive')
+View(offense)
+biography <- read_excel('cyclonesFootball2019.xlsx', sheet='Biography')
+View(biography)
+
+```
