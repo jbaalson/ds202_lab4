@@ -1,6 +1,6 @@
 ---
 title: "team.Rmd"
-author: "Jacob Baalson"
+author: "Jacob Baalson, Charlie Whiting"
 date: "3/20/2020"
 output: html_document
 ---
@@ -9,10 +9,9 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
+Part One: Cleaning Data
 
 ```{r}
-
 library(readxl)
 defense <- read_excel('cyclonesFootball2019.xlsx', sheet='Defensive')
 offense <- read_excel('cyclonesFootball2019.xlsx', sheet='Offensive')
@@ -33,10 +32,13 @@ str(defClean)
 str(offClean)
 ```
 
+Part Two: Tidying
 ```{r}
 defClean <- defClean %>% pivot_longer(Tackles_Solo:Pass_PB, names_to = 'Statistic', values_to = 'Value')
-defClean %>% ggplot(aes(x = Value)) + geom_histogram() + facet_wrap(~Statistic, scales = 'free_x') 
+#View(defClean)
+defClean %>% ggplot(aes(x = Value)) + geom_histogram() + facet_wrap(~Statistic, scales = 'free_x') + ggtitle("Count of Different Defensive Stats")
 ```
+
 The Rarest defensive skills are forced fumbles, fumble recoveries, and interceptions. This is because for most players those values are at zero and only a few players have 1 of these statistics.
 
 ```{r}
@@ -46,4 +48,80 @@ def <- def %>% filter(Statistic == "Tackles_Solo", Opponent_Opponent %in% c('Wes
 def <- def %>% pivot_wider(names_from = Opponent_Opponent, values_from = Value)
 def %>% ggplot(aes(x = `West Virginia`, y = `Kansas State`)) + geom_point(position = 'jitter') + geom_smooth(method = lm) + ggtitle("Solo Tackles by Player Kansas State vs. West Virginia")
 ```
+
 From the scatter plot you can see that Iowa State had the more solo tackles against West Virginia meaning that they had a better defense against West Virginia.
+
+```{r}
+bioClean <- bioClean %>% separate(col=Hometown, into=c("City", "State"), sep=',')
+
+bioClean %>% ggplot(aes(x=State)) + geom_bar(fill='blue') +
+  geom_text(stat='count', aes(label=stat(count), vjust = -.5)) +
+  ggtitle("Number of Football Players per State")
+
+```
+
+From this graph, it is clear that Iowa is the home state containing the most Iowa State University Football players. This is followed by Florida and Ohio.
+
+Part Three: Joining Data Frames
+```{r}
+#One row per player, not per game.
+offPlayers <- offClean %>% pivot_wider(names_from = "Opponent_Opponent", values_from = Rushing_ATT:Passing_INT)
+
+offHome <- bioClean %>% inner_join(offPlayers) %>% group_by(Name) 
+
+offHome %>% ggplot(aes(x=State)) + geom_bar(fill='brown') +
+  ggtitle("Number of Offensive Players per State") + 
+  geom_text(stat='count', aes(label=stat(count), vjust = -.5))
+```
+
+This graph shows that Florida and Oklahoma are both home to 2 offensive players, and that every other state only is home to one player. 
+
+```{r}
+weightReceiving <- bioClean %>% inner_join(offClean) 
+
+weightReceiving %>% ggplot(aes(x=Weight, y=Receiving_YDS)) +
+  geom_point() + ylab("Receiving Yards") + 
+  ggtitle("Relationship Between Player Weight and Receiving Yards") + 
+  geom_text(label=weightReceiving$Position, check_overlap = TRUE)
+```
+
+This is a difficult question to answer. It is easy to see that each vertical line represents one player, with each point representing a specific game they played during the season. I added the detail of what position this player plays into the plot. I don't think weight matters when determining relationship on receiving yards as much as position, for example, as the running backs plotted above tend to have less receiving yards than the wide receivers or tight ends do. If there is a relationship between weight and receiving yards, it likely comes from the average weight that comes with each position, as inemen weigh much more than wide receivers.
+
+```{r}
+#Create a dataframe containing offensive stats unrelating to QB play (rushing) and defensive tackles/INTs
+def <- defClean %>% pivot_wider(names_from = Statistic, values_from = Value) %>% 
+  select(Name, Opponent_Opponent, Turnover_INT, Tackles_Solo)
+off <- offClean %>% select(Name, Opponent_Opponent, Rushing_TD, Rushing_YDS, Passing_YDS, Passing_TD, Passing_INT)
+
+cyclones <- full_join(off, def)
+
+brockPurdy <- cyclones %>% filter(Name == 'Purdy, Brock') %>% 
+  select(Name, Opponent_Opponent, Passing_YDS, Passing_TD, Passing_INT)
+
+brockBest <- brockPurdy %>% filter(Passing_TD == max(brockPurdy$Passing_TD))
+brockWorst <- brockPurdy %>% filter(Passing_INT == max(brockPurdy$Passing_INT))
+
+bestGame <- brockBest$Opponent_Opponent #Oklahoma: 5 TDs
+worstGame <- brockWorst$Opponent_Opponent #Oklahoma State: 3 INTs
+
+cyclones <- cyclones %>% 
+  filter(Opponent_Opponent == bestGame | Opponent_Opponent == worstGame) 
+
+cyclones %>% filter(!is.na(Rushing_YDS)) %>%
+  ggplot(aes(x=Name, weight=Rushing_YDS, fill=Rushing_TD)) + geom_bar() +  coord_flip() + 
+  facet_wrap(~Opponent_Opponent) + 
+  geom_text(stat='count', aes(label=stat(count), hjust = -.5)) +
+  ylab("Rushing Yards") + ggtitle("Offensive Performance in Brock Purdy's Best and Worst Game")
+  
+cyclones %>% filter(Tackles_Solo != 0) %>%
+  ggplot(aes(x=Name, weight=Tackles_Solo, fill=Turnover_INT)) + geom_bar() + 
+  coord_flip() + facet_wrap(~Opponent_Opponent) + 
+  geom_text(stat='count', aes(label=stat(count), hjust = -.5)) +
+  ylab("Solo Tackles") + ggtitle("Defensive Performance in Brock Purdy's Best and Worst Game") 
+```
+
+These plots show how the football team played during Brock's best (Oklahoma) and worst (Oklahoma State) game of the season. It makes sense that a good game for Brock translated to a good run game, since it appears the mix of running and passing kept the defense off balance and kept both options fresh. It also makes sense that a bad passing game for Brock translated to lower rushing yards. This is likely due to the Cyclones playing against a very strong defense.
+
+On the defensive side of the ball, it appeared that the Cyclones played relatively similar football. Both games had one or two standout performances, but the rest of the team seemed to play at relatively similar level. This graph/dataset does not account for time of possession for each team, so it is impossible to know how quickly or slowly these stats were accrued. If the defense in one of these games was on the field for twice the amount of the other one, it would make sense to conclude that that defensive showing wasn't as strong as the other. But, with the given information, it appears that the overall defensive play by the Cyclones was consistent between the two games. 
+
+
