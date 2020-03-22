@@ -1,6 +1,6 @@
 ---
-title: "team.Rmd"
-author: "Jacob Baalson, Charlie Whiting"
+title: "Lab 4"
+author: "Jacob Baalson, Charlie Whiting GitHub: jbaalson, chrlwhtng"
 date: "3/20/2020"
 output: html_document
 ---
@@ -125,3 +125,41 @@ These plots show how the football team played during Brock's best (Oklahoma) and
 On the defensive side of the ball, it appeared that the Cyclones played relatively similar football. Both games had one or two standout performances, but the rest of the team seemed to play at relatively similar level. This graph/dataset does not account for time of possession for each team, so it is impossible to know how quickly or slowly these stats were accrued. If the defense in one of these games was on the field for twice the amount of the other one, it would make sense to conclude that that defensive showing wasn't as strong as the other. But, with the given information, it appears that the overall defensive play by the Cyclones was consistent between the two games. 
 
 
+Does performance of the defense(Tackles) affect performance of the offense(Total_TDs), and did this change from 2018 to 2019?
+
+```{r}
+defense18 <- read_excel('cyclonesFootball2018.xlsx', sheet='Defensive')
+offense18 <- read_excel('cyclonesFootball2018.xlsx', sheet='Offensive')
+biography18 <- read_excel('cyclonesFootball2018.xlsx', sheet='Biography')
+defense18 <- defense18 %>% mutate(Name = factor(Name), Opponent_Opponent = factor(Opponent_Opponent))
+offense18 <- offense18 %>% mutate(Name = factor(Name), Opponent_Opponent = factor(Opponent_Opponent))
+biography18 <- biography18 %>% mutate(Name = factor(Name))
+defClean18 <- defense18 %>% mutate_at(.vars = vars(Tackles_Solo, Tackles_ASST, Tackles_TFL, Tackles_Sack, Turnover_FF, Turnover_FR, Turnover_INT, Pass_QBH, Pass_PB), .funs = funs(as.numeric))
+offClean18 <- offense18 %>% mutate_at(.vars = vars(Rushing_ATT, Rushing_YDS, Rushing_TD, Receiving_REC, Receiving_YDS, Receiving_TD, 'Passing_CMP-ATT', Passing_YDS, Passing_TD, Passing_INT), .funs = funs(as.numeric))
+biography18 <- biography18 %>% mutate_at(.vars = vars(Weight), .funs = funs(as.numeric))
+bioClean18 <- biography18 %>% separate(col = Height, into= c('Feet', 'Inches'), sep = "-") %>% mutate_at(.vars = vars(Feet, Inches), .funs = funs(as.numeric)) %>% mutate(Feet = Feet* 12) %>% mutate(Height_Inches = Feet + Inches) %>% select(-Inches, -Feet)
+
+
+defClean18 <- defClean18 %>% pivot_longer(Tackles_Solo:Pass_PB, names_to = 'Statistic', values_to = 'Value')
+offClean18 <- offClean18 %>% pivot_longer(Receiving_REC:Passing_INT, names_to = 'Statistic', values_to = 'Value')
+offClean <- offClean %>% pivot_longer(Receiving_REC:Passing_INT, names_to= 'Statistic', values_to = 'Value')
+#First make total touchdowns per game statistic and make a total tackles per game statistic and then merge the two data frames for both 2018 and 2019
+
+defClean18 <- defClean18 %>% filter(Statistic == 'Tackles_Solo') %>% group_by(Opponent_Opponent) %>% mutate(Team_Tackles = sum(Value)) %>% ungroup
+                                                                                                                            offClean18 <- offClean18 %>% filter(Statistic %in% c('Receiving_TD', 'Rushing_TD')) %>% group_by(Opponent_Opponent) %>% mutate(Team_TD = sum(Value, na.rm = TRUE))
+
+                                                                                                                            offClean <- offClean %>% filter(Statistic %in% c('Receiving_TD', 'Rushing_TD')) %>% group_by(Opponent_Opponent) %>% mutate(Team_TD = sum(Value, na.rm = TRUE)) 
+                                                                                                                            
+defClean <- defClean %>% filter(Statistic == 'Tackles_Solo') %>% group_by(Opponent_Opponent) %>% mutate(Team_Tackles = sum(Value)) %>% ungroup                                                                                                                            
+                                                                                                                      
+                                                                                                                            both18 <- inner_join(offClean18, defClean18, by = 'Opponent_Opponent') %>% select(Opponent_Opponent, Team_Tackles, Team_TD) %>% unique() %>% mutate(year = 2018)
+
+
+both19 <- inner_join(offClean, defClean, by = 'Opponent_Opponent') %>% select(Opponent_Opponent, Team_Tackles, Team_TD) %>% unique() %>% mutate(year = 2019)
+
+
+both <- full_join(both18, both19)
+both %>% ggplot(aes(x= Team_Tackles, y = Team_TD)) + geom_point(position = "jitter") + facet_wrap(~year) + geom_smooth(method = lm) + ggtitle("Team Tackles vs. Team TD's by Year")
+```
+
+Performance of the defense does not seem to affect the performance of the offense in 2018 as the scatter plot shows a random scatter of points and as the total team tackles goes up it does not seem to affect total team TD's in anyway signifigant. This pattern changes a bit in 2019 though as performance of the defense in terms of team tackles seems to affect total team TD's on offense. As Team tackles goes up so does total TD's. These plots show that there is a weak positive linear relationship in the 2018 facet and a moderate positive linear relationship in the 2019 facet. 
